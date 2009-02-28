@@ -3,12 +3,12 @@ module ActionView #:nodoc:
   class PathSet
     attr_accessor :active_scaffold_paths
 
-    def find_template_with_active_scaffold(original_template_path, format = nil)
+    def find_template_with_active_scaffold(original_template_path, format = nil, html_fallback = true)
       begin
-        find_template_without_active_scaffold(original_template_path, format)
+        find_template_without_active_scaffold(original_template_path, format, html_fallback)
       rescue MissingTemplate
         if active_scaffold_paths && original_template_path.include?('/')
-          active_scaffold_paths.find_template_without_active_scaffold(original_template_path.split('/').last, format)
+          active_scaffold_paths.find_template_without_active_scaffold(original_template_path.split('/').last, format, html_fallback)
         else
           raise
         end
