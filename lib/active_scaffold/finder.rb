@@ -12,12 +12,14 @@ module ActiveScaffold
 
         where_clauses = []
         columns.each do |column|
-          where_clauses << "LOWER(#{column.search_sql}) LIKE ?"
+          where_clauses << ((column.column.nil? || column.column.text?) ? "LOWER(#{column.search_sql}) LIKE ?" : "#{column.search_sql} = ?")
         end
         phrase = "(#{where_clauses.join(' OR ')})"
 
         sql = ([phrase] * tokens.length).join(' AND ')
-        tokens = tokens.collect{ |value| [like_pattern.sub('?', value.downcase)] * where_clauses.length }.flatten
+        tokens = tokens.collect do |value|
+          columns.collect {|column| (column.column.nil? || column.column.text?) ? like_pattern.sub('?', value.downcase) : column.column.type_cast(value)}
+        end.flatten
 
         [sql, *tokens]
       end
@@ -36,13 +38,17 @@ module ActiveScaffold
         else
           case search_ui
             when :boolean, :checkbox
-            ["#{column.search_sql} = ?", value.to_i]
+            ["#{column.search_sql} = ?", column.column.type_cast(value)]
             when :select
             ["#{column.search_sql} = ?", value[:id]] unless value[:id].blank?
             when :multi_select
             ["#{column.search_sql} in (?)", value.values.collect{|hash| hash[:id]}]
             else
-            ["LOWER(#{column.search_sql}) LIKE ?", like_pattern.sub('?', value.downcase)]
+              if column.column.nil? || column.column.text?
+                ["LOWER(#{column.search_sql}) LIKE ?", like_pattern.sub('?', value.downcase)]
+              else
+                ["#{column.search_sql} = ?", column.column.type_cast(value)]
+              end
           end
         end
       end
@@ -152,6 +158,8 @@ module ActiveScaffold
                          :conditions => all_conditions,
                          :joins => joins_for_finder,
                          :include => options[:count_includes]}
+                         
+      finder_options.merge! custom_finder_options
 
       # NOTE: we must use :include in the count query, because some conditions may reference other tables
       count = klass.count(finder_options.reject{|k,v| [:order].include? k})
@@ -175,12 +183,12 @@ module ActiveScaffold
 
     def joins_for_finder
       case joins_for_collection
-      when String
-        [ joins_for_collection ]
-      when Array
-        joins_for_collection
-      else
-        []
+        when String
+          [ joins_for_collection ]
+        when Array
+          joins_for_collection
+        else
+          []
       end + active_scaffold_habtm_joins
     end
     

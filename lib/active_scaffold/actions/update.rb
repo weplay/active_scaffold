@@ -93,7 +93,9 @@ module ActiveScaffold::Actions
     def do_update_column
       @record = find_if_allowed(params[:id], :update)
       if @record.authorized_for?(:action => :update, :column => params[:column])
-        @record.update_attributes(params[:column] => params[:value])
+        params[:value] ||= @record.column_for_attribute(params[:column]).default unless @record.column_for_attribute(params[:column]).null
+        @record.send("#{params[:column]}=", params[:value])
+        @record.save
       end
     end
 
